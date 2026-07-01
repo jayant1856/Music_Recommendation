@@ -3,131 +3,331 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI Music Mood Classifier | Jayant Sharma</title>
+  <title>AI Music Recommendation | Jayant Sharma</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/css/style.css"/>
 </head>
 <body>
 
-  <nav>
-    <div class="container nav-inner">
-      <div class="logo">
-        <div class="logo-icon">🎵</div>
-        Moodify AI
-      </div>
-      <div class="nav-links">
-        <a href="#search">Search</a>
-        <a href="#how">How It Works</a>
-        <a href="#results">Results</a>
-      </div>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">♫</div>
+      Moodify AI
     </div>
-  </nav>
 
-  <header class="hero container">
-    <div class="hero-badge">Machine Learning · K-Means Clustering</div>
-    <h1>Discover Music by <span>Mood & AI</span></h1>
-    <p>
-      Search 170,000+ songs from our Spotify dataset or let AI analyze any track
-      and classify it into Relax, Party, Romantic, Happy, or Rap.
-    </p>
-    <div class="stats-row" id="statsRow">
-      <div class="stat-card"><div class="num" id="statSongs">—</div><div class="label">Songs in Dataset</div></div>
-      <div class="stat-card"><div class="num">10</div><div class="label">Audio Features</div></div>
-      <div class="stat-card"><div class="num">5</div><div class="label">Mood Clusters</div></div>
-      <div class="stat-card"><div class="num">K-Means</div><div class="label">ML Algorithm</div></div>
+    <nav class="nav-section">
+      <div class="nav-label">Library</div>
+      <button class="nav-item active" data-page="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </button>
+      <button class="nav-item" data-page="discover">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        Discover
+      </button>
+      <button class="nav-item" data-page="classify">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        Classify
+      </button>
+    </nav>
+
+    <nav class="nav-section">
+      <div class="nav-label">About</div>
+      <button class="nav-item" data-page="project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+        Project
+      </button>
+      <button class="nav-item" data-page="developer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Developer
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div id="sidebarStats">Loading dataset…</div>
+      <a href="https://github.com/jayant1856" target="_blank" rel="noopener">github.com/jayant1856</a>
     </div>
-  </header>
+  </aside>
 
-  <section class="search-section container" id="search">
-    <div class="search-card">
-      <h2>🔍 Search Music</h2>
-      <p class="subtitle">Find songs from the dataset or classify any track with AI</p>
+  <main id="main">
+    <header class="topbar">
+      <h1 class="topbar-title" id="pageTitle">Good <span id="greetingTime">Morning</span></h1>
+      <div class="time-badge">Now: <span id="timeDisplay">—</span></div>
+    </header>
 
-      <div class="mode-tabs">
-        <button class="mode-tab active" data-mode="dataset">📂 Dataset Search</button>
-        <button class="mode-tab" data-mode="ai">🤖 AI Classify</button>
-        <button class="mode-tab" data-mode="spotify">🎧 Spotify Online</button>
-      </div>
+    <!-- HOME -->
+    <section class="page active" id="page-home">
+      <p class="hero-sub">Your AI-powered music companion. What are you feeling today?</p>
 
-      <div class="search-row">
-        <div class="search-input-wrap">
-          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-          </svg>
-          <input
-            type="text"
-            id="searchInput"
-            class="search-input"
-            placeholder="Search song or artist..."
-            autocomplete="off"
-          />
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Songs</div>
+          <div class="stat-value accent" id="statSongs">—</div>
         </div>
-        <input
-          type="text"
-          id="artistInput"
-          class="search-input hidden"
-          placeholder="Artist name (optional)"
-          style="flex:0.6; min-width:160px; padding-left:16px;"
-        />
-        <button class="search-btn" id="searchBtn">Search</button>
+        <div class="stat-card">
+          <div class="stat-label">Audio Features</div>
+          <div class="stat-value">10</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Mood Clusters</div>
+          <div class="stat-value">5</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Time of Day</div>
+          <div class="stat-value stat-sm" id="statTime">—</div>
+        </div>
       </div>
 
-      <div class="mood-filters" id="moodFilters">
-        <button class="mood-chip active" data-mood="">All Moods</button>
-        <button class="mood-chip" data-mood="Relax">😌 Relax</button>
-        <button class="mood-chip" data-mood="Party">🎉 Party</button>
-        <button class="mood-chip" data-mood="Romantic">💕 Romantic</button>
-        <button class="mood-chip" data-mood="Happy">😊 Happy</button>
-        <button class="mood-chip" data-mood="Rap">🎤 Rap</button>
+      <div class="section-header">
+        <h2>Pick a Mood</h2>
+        <button class="link-btn" data-goto="discover">Go to Discover →</button>
+      </div>
+      <div class="mood-grid" id="homeMoodGrid">
+        <button class="mood-tile" data-mood="Relax"><span class="mood-emoji">😌</span><span class="mood-name">Relax</span></button>
+        <button class="mood-tile" data-mood="Party"><span class="mood-emoji">🎉</span><span class="mood-name">Party</span></button>
+        <button class="mood-tile" data-mood="Romantic"><span class="mood-emoji">💕</span><span class="mood-name">Romantic</span></button>
+        <button class="mood-tile" data-mood="Happy"><span class="mood-emoji">😊</span><span class="mood-name">Happy</span></button>
+        <button class="mood-tile" data-mood="Rap"><span class="mood-emoji">🎤</span><span class="mood-name">Rap</span></button>
       </div>
 
-      <p class="mode-hint" id="modeHint">
-        Search by song name or artist in the local Spotify dataset (170K+ tracks).
-      </p>
-    </div>
-  </section>
+      <div class="time-rec-card" id="timeRecCard">
+        <div class="time-rec-info">
+          <h3>🕐 Right Now</h3>
+          <p id="timeRecDesc">Loading time-based picks…</p>
+          <div class="time-mood-tags" id="timeMoodTags"></div>
+        </div>
+        <button class="primary-btn" id="playForNowBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Play for This Time
+        </button>
+      </div>
 
-  <section class="results-section container" id="results">
-    <div class="results-header">
-      <h3>Results</h3>
-      <span class="results-count" id="resultsCount"></span>
-    </div>
-    <div id="resultsArea">
-      <div class="empty-state">
-        <p>👆 Search for a song to see mood classification results</p>
+      <div id="homeResults" class="hidden">
+        <div class="section-header">
+          <h2 id="homeResultsTitle">Top Picks</h2>
+          <span class="results-count" id="homeResultsCount"></span>
+        </div>
+        <div class="song-list" id="homeSongList"></div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="how-section container" id="how">
-    <h2>How It Works</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h4>Search or Enter a Song</h4>
-        <p>Query our 170K song dataset, search Spotify online, or type any song name for AI analysis.</p>
+    <!-- DISCOVER -->
+    <section class="page" id="page-discover">
+      <div class="page-intro">
+        <h2>Discover Music</h2>
+        <p>Get recommendations by mood or by the current time of day using K-Means clustering.</p>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h4>Extract 10 Audio Features</h4>
-        <p>Acousticness, danceability, energy, tempo, valence, and 5 more Spotify-style parameters.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h4>K-Means Mood Classification</h4>
-        <p>Our trained ML model assigns each song to one of 5 mood clusters instantly.</p>
-      </div>
-    </div>
-  </section>
 
-  <footer>
-    <div class="container">
-      <p><strong>AI Music Recommendation System</strong> — Built by Jayant Sharma</p>
-      <p style="margin-top:6px;">Python · Scikit-learn · K-Means · Spotify Dataset · OpenAI</p>
+      <div class="discover-tabs">
+        <button class="discover-tab active" data-discover="mood">🎭 By Mood</button>
+        <button class="discover-tab" data-discover="time">🕐 By Time of Day</button>
+      </div>
+
+      <div id="discoverMoodPanel">
+        <div class="mood-row" id="discoverMoodRow">
+          <button class="mood-btn" data-mood="Relax">😌 Relax</button>
+          <button class="mood-btn" data-mood="Party">🎉 Party</button>
+          <button class="mood-btn" data-mood="Romantic">💕 Romantic</button>
+          <button class="mood-btn" data-mood="Happy">😊 Happy</button>
+          <button class="mood-btn" data-mood="Rap">🎤 Rap</button>
+        </div>
+        <button class="primary-btn" id="findBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Find Songs
+        </button>
+      </div>
+
+      <div id="discoverTimePanel" class="hidden">
+        <div class="time-picker-row" id="timePickerRow">
+          <button class="time-btn" data-time="Morning">🌅 Morning</button>
+          <button class="time-btn" data-time="Afternoon">☀️ Afternoon</button>
+          <button class="time-btn" data-time="Evening">🌆 Evening</button>
+          <button class="time-btn" data-time="Night">🌙 Night</button>
+        </div>
+        <p class="time-picker-desc" id="timePickerDesc"></p>
+        <button class="primary-btn" id="findTimeBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Find Songs for This Time
+        </button>
+      </div>
+
+      <div id="discoverResults">
+        <div class="empty-state">
+          <div class="empty-icon">🎵</div>
+          <p>Select a mood above to get started</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLASSIFY -->
+    <section class="page" id="page-classify">
+      <div class="page-intro">
+        <h2>Classify Songs</h2>
+        <p>Search the dataset, query Spotify online, or let AI estimate audio features for any track.</p>
+      </div>
+
+      <div class="search-card">
+        <div class="mode-tabs">
+          <button class="mode-tab active" data-mode="dataset">📂 Dataset</button>
+          <button class="mode-tab" data-mode="ai">🤖 AI Estimate</button>
+          <button class="mode-tab" data-mode="ai-random">🎲 AI Random</button>
+          <button class="mode-tab" data-mode="spotify">🎧 Spotify</button>
+        </div>
+
+        <div class="search-row" id="searchRow">
+          <div class="search-input-wrap">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="Search song or artist…" autocomplete="off"/>
+          </div>
+          <input type="text" id="artistInput" class="artist-input hidden" placeholder="Artist (optional)"/>
+          <button class="primary-btn" id="searchBtn">Search</button>
+        </div>
+
+        <div class="ai-random-panel hidden" id="aiRandomPanel">
+          <p class="mode-hint">AI picks random real songs, estimates all 10 audio parameters, and classifies each into a mood cluster.</p>
+          <div class="ai-random-options">
+            <label class="option-label">
+              Number of songs
+              <select id="aiRandomCount">
+                <option value="3">3</option>
+                <option value="5" selected>5</option>
+                <option value="8">8</option>
+                <option value="10">10</option>
+              </select>
+            </label>
+            <label class="option-label">
+              Time context
+              <select id="aiRandomTime">
+                <option value="">Current time</option>
+                <option value="Morning">Morning</option>
+                <option value="Afternoon">Afternoon</option>
+                <option value="Evening">Evening</option>
+                <option value="Night">Night</option>
+              </select>
+            </label>
+            <label class="option-label">
+              Mood hint (optional)
+              <select id="aiRandomMood">
+                <option value="">Any</option>
+                <option value="Relax">Relax</option>
+                <option value="Party">Party</option>
+                <option value="Romantic">Romantic</option>
+                <option value="Happy">Happy</option>
+                <option value="Rap">Rap</option>
+              </select>
+            </label>
+          </div>
+          <button class="primary-btn" id="aiRandomBtn">
+            🎲 Generate Random Songs with AI
+          </button>
+        </div>
+
+        <div class="mood-filters" id="moodFilters">
+          <button class="mood-chip active" data-mood="">All</button>
+          <button class="mood-chip" data-mood="Relax">😌 Relax</button>
+          <button class="mood-chip" data-mood="Party">🎉 Party</button>
+          <button class="mood-chip" data-mood="Romantic">💕 Romantic</button>
+          <button class="mood-chip" data-mood="Happy">😊 Happy</button>
+          <button class="mood-chip" data-mood="Rap">🎤 Rap</button>
+        </div>
+        <p class="mode-hint" id="modeHint">Search by song name or artist in the local Spotify dataset.</p>
+      </div>
+
+      <div id="classifyResults">
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <p>Search for a song to see mood classification results</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECT -->
+    <section class="page" id="page-project">
+      <h2 class="page-heading">About the Project</h2>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>Problem Statement</h3>
+          <p>Users often struggle to find songs that match their current mood. This system uses unsupervised machine learning to cluster songs by audio features and recommend them by mood category.</p>
+        </div>
+        <div class="info-card">
+          <h3>How It Works</h3>
+          <ul>
+            <li>Spotify audio features extracted per track</li>
+            <li>K-Means clustering groups similar songs</li>
+            <li>Clusters mapped to 5 mood categories</li>
+            <li>Results ranked by popularity</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Cluster → Mood Mapping</h3>
+        <table class="cluster-table">
+          <thead><tr><th>Cluster</th><th>Mood</th><th>Characteristics</th></tr></thead>
+          <tbody id="clusterTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="info-card">
+        <h3>Tech Stack</h3>
+        <div class="tag-row">
+          <span class="tag">Python</span>
+          <span class="tag">K-Means</span>
+          <span class="tag">Scikit-learn</span>
+          <span class="tag">Flask</span>
+          <span class="tag">Spotify API</span>
+          <span class="tag">OpenAI</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEVELOPER -->
+    <section class="page" id="page-developer">
+      <h2 class="page-heading">Developer</h2>
+      <div class="dev-card">
+        <div class="dev-avatar">JS</div>
+        <div class="dev-name">Jayant Sharma</div>
+        <div class="dev-title">AI & Machine Learning Enthusiast</div>
+        <div class="skill-pills">
+          <span class="skill-pill">Python</span>
+          <span class="skill-pill">Machine Learning</span>
+          <span class="skill-pill">Data Science</span>
+          <span class="skill-pill">Flask</span>
+        </div>
+        <a class="gh-link" href="https://github.com/jayant1856" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.49.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8c.85.004 1.7.115 2.5.337 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10.01 10.01 0 0022 12c0-5.52-4.48-10-10-10z"/></svg>
+          github.com/jayant1856
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Now Playing -->
+  <div class="now-playing" id="nowPlaying">
+    <div class="np-art" id="npArt">🎵</div>
+    <div class="np-info">
+      <div class="np-title" id="npTitle">—</div>
+      <div class="np-artist" id="npArtist">—</div>
     </div>
-  </footer>
+    <div class="np-meta">
+      <span class="mood-badge" id="npMood"></span>
+      <span class="np-pop" id="npPop"></span>
+    </div>
+    <div class="np-controls">
+      <button class="np-btn" id="npPrev" title="Previous">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+      </button>
+      <button class="np-btn np-play" id="npPlay" title="Play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <button class="np-btn" id="npNext" title="Next">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+      </button>
+    </div>
+  </div>
 
   <script src="/static/js/app.js"></script>
 </body>

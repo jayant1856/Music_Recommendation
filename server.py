@@ -1,6 +1,7 @@
 """Flask server for the internship presentation website."""
 
 import os
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -9,8 +10,18 @@ from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 
 from ml.classifier import SongClassifier, find_csv_path, prepare_dataframe
-from ml.constants import CLUSTER_MOODS, FEATURES, MOOD_DESCRIPTIONS
-from services.ai_features import AIFeatureError, estimate_features_with_ai
+from ml.constants import (
+    CLUSTER_MOODS,
+    FEATURES,
+    MOOD_DESCRIPTIONS,
+    TIME_DESCRIPTIONS,
+    TIME_OF_DAY_MOODS,
+)
+from services.ai_features import (
+    AIFeatureError,
+    estimate_features_with_ai,
+    suggest_random_songs_with_ai,
+)
 from services.spotify_client import SpotifyClient
 
 load_dotenv()
@@ -44,6 +55,18 @@ def get_classifier() -> SongClassifier:
     return _classifier
 
 
+def get_time_of_day(hour: int | None = None) -> str:
+    if hour is None:
+        hour = datetime.now().hour
+    if 5 <= hour < 12:
+        return "Morning"
+    if 12 <= hour < 17:
+        return "Afternoon"
+    if 17 <= hour < 21:
+        return "Evening"
+    return "Night"
+
+
 def song_row_to_dict(row) -> dict:
     return {
         "name": row["name"],
@@ -73,6 +96,11 @@ def stats():
                 "features": len(FEATURES),
                 "clusters": len(CLUSTER_MOODS),
                 "mood_counts": mood_counts,
+                "current_time_of_day": get_time_of_day(),
+                "time_of_day_moods": {
+                    k: {"moods": v, "description": TIME_DESCRIPTIONS[k]}
+                    for k, v in TIME_OF_DAY_MOODS.items()
+                },
                 "moods": [
                     {
                         "id": k,
@@ -81,6 +109,67 @@ def stats():
                     }
                     for k, v in CLUSTER_MOODS.items()
                 ],
+            }
+        )
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@app.route("/api/recommend")
+def recommend():
+    mood = request.args.get("mood", "").strip()
+    limit = min(int(request.args.get("limit", 10)), 50)
+
+    if mood not in CLUSTER_MOODS.values():
+        return jsonify({"error": "Select a valid mood: Relax, Party, Romantic, Happy, Rap"}), 400
+
+    try:
+        df = get_dataframe()
+        cluster_id = next(k for k, v in CLUSTER_MOODS.items() if v == mood)
+        results = (
+            df[df["cluster"] == cluster_id]
+            .sort_values("popularity", ascending=False)
+            .head(limit)
+        )
+        return jsonify(
+            {
+                "mood": mood,
+                "count": len(results),
+                "results": [song_row_to_dict(row) for _, row in results.iterrows()],
+            }
+        )
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@app.route("/api/recommend-time")
+def recommend_time():
+    time_of_day = request.args.get("time_of_day", "").strip() or get_time_of_day()
+    limit = min(int(request.args.get("limit", 10)), 50)
+
+    if time_of_day not in TIME_OF_DAY_MOODS:
+        valid = ", ".join(TIME_OF_DAY_MOODS.keys())
+        return jsonify({"error": f"Invalid time. Use: {valid}"}), 400
+
+    try:
+        df = get_dataframe()
+        moods = TIME_OF_DAY_MOODS[time_of_day]
+        cluster_ids = [
+            next(k for k, v in CLUSTER_MOODS.items() if v == mood) for mood in moods
+        ]
+        results = (
+            df[df["cluster"].isin(cluster_ids)]
+            .sort_values("popularity", ascending=False)
+            .head(limit)
+        )
+
+        return jsonify(
+            {
+                "time_of_day": time_of_day,
+                "description": TIME_DESCRIPTIONS[time_of_day],
+                "suggested_moods": moods,
+                "count": len(results),
+                "results": [song_row_to_dict(row) for _, row in results.iterrows()],
             }
         )
     except FileNotFoundError as exc:
@@ -155,6 +244,53 @@ def classify_ai():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         return jsonify({"error": f"AI classification failed: {exc}"}), 500
+
+
+@app.route("/api/ai-random", methods=["POST"])
+def ai_random():
+    data = request.get_json(silent=True) or {}
+    count = min(int(data.get("count", 5)), 10)
+    time_of_day = (data.get("time_of_day") or "").strip()
+    mood = (data.get("mood") or "").strip()
+
+    classifier = get_classifier()
+    if not classifier.is_ready:
+        return jsonify(
+            {"error": "Model not trained. Run: python -m ml.train_model"}
+        ), 503
+
+    try:
+        suggestions = suggest_random_songs_with_ai(
+            count=count,
+            time_of_day=time_of_day or get_time_of_day(),
+            mood=mood,
+        )
+        results = []
+        for song in suggestions:
+            classified = classifier.classify_song(song["features"])
+            results.append(
+                {
+                    "name": song["name"],
+                    "artists": song["artist"],
+                    "source": "ai-random",
+                    "cluster": classified["cluster"],
+                    "mood": classified["mood"],
+                    "mood_description": MOOD_DESCRIPTIONS[classified["mood"]],
+                    "features": classified["features"],
+                    "popularity": int(classified["features"]["popularity"]),
+                }
+            )
+        return jsonify(
+            {
+                "count": len(results),
+                "time_of_day": time_of_day or get_time_of_day(),
+                "results": results,
+            }
+        )
+    except AIFeatureError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"AI random pick failed: {exc}"}), 500
 
 
 @app.route("/api/search-spotify")

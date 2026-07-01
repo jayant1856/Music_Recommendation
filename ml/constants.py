@@ -26,3 +26,17 @@ MOOD_DESCRIPTIONS = {
     "Happy": "High valence, upbeat tempo",
     "Rap": "High speechiness, strong beat",
 }
+
+TIME_OF_DAY_MOODS = {
+    "Morning": ["Happy", "Relax"],
+    "Afternoon": ["Happy", "Party"],
+    "Evening": ["Romantic", "Relax"],
+    "Night": ["Relax", "Rap"],
+}
+
+TIME_DESCRIPTIONS = {
+    "Morning": "Upbeat and calm tracks to start your day",
+    "Afternoon": "Energetic songs to keep you going",
+    "Evening": "Romantic and mellow vibes to wind down",
+    "Night": "Chill and late-night beats",
+}
