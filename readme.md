@@ -7,7 +7,8 @@ This project is a machine learning-based music recommendation system that sugges
 ## ✨ Features
 
 - Mood-based song recommendations
-- Time-of-day filtering
+- **Online song classification** — search Spotify, extract audio parameters, classify with K-Means
+- **AI parameter estimation** — estimate features from song name when Spotify is unavailable
 - Popularity-based ranking
 - Interactive Streamlit web application
 
@@ -43,11 +44,45 @@ git clone https://github.com/jayant1856/Music_Recommendation.git
 pip install -r requirements.txt
 ```
 
-3. Run the application:
+3. Copy environment template and add API keys (optional but needed for online classification):
+
+```bash
+copy .env.example .env
+```
+
+4. Train the classification model (requires `spotify_prepared.csv` in project root):
+
+```bash
+python -m ml.train_model
+```
+
+5. Run the **presentation website**:
+
+```bash
+python server.py
+```
+
+Open `http://localhost:5000` in your browser.
+
+6. Or run the Streamlit app:
 
 ```bash
 streamlit run app.py
 ```
+
+## 🔍 Online Song Classification
+
+1. Open the **Classify Online** page in the app
+2. **Spotify Search** — finds songs and pulls real audio features (acousticness, tempo, valence, etc.)
+3. **AI Estimate** — uses OpenAI to guess parameters from song name/artist
+4. Your saved K-Means model assigns a mood: Relax, Party, Romantic, Happy, or Rap
+
+### API setup
+
+| Service | Purpose | Get keys |
+|---------|---------|----------|
+| Spotify | Search songs + audio features | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| OpenAI | AI feature estimation fallback | [OpenAI API Keys](https://platform.openai.com/api-keys) |
 
 ## 📊 Dataset
 

@@ -1,0 +1,18 @@
+{
+  "features": [
+    "acousticness",
+    "danceability",
+    "energy",
+    "instrumentalness",
+    "liveness",
+    "loudness",
+    "speechiness",
+    "tempo",
+    "valence",
+    "popularity"
+  ],
+  "n_clusters": 5,
+  "uses_scaling": false,
+  "trained_from": "spotify_prepared.csv",
+  "n_samples": 169909
+}

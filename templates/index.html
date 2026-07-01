@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Music Mood Classifier | Jayant Sharma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+
+  <nav>
+    <div class="container nav-inner">
+      <div class="logo">
+        <div class="logo-icon">🎵</div>
+        Moodify AI
+      </div>
+      <div class="nav-links">
+        <a href="#search">Search</a>
+        <a href="#how">How It Works</a>
+        <a href="#results">Results</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero container">
+    <div class="hero-badge">Machine Learning · K-Means Clustering</div>
+    <h1>Discover Music by <span>Mood & AI</span></h1>
+    <p>
+      Search 170,000+ songs from our Spotify dataset or let AI analyze any track
+      and classify it into Relax, Party, Romantic, Happy, or Rap.
+    </p>
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="num" id="statSongs">—</div><div class="label">Songs in Dataset</div></div>
+      <div class="stat-card"><div class="num">10</div><div class="label">Audio Features</div></div>
+      <div class="stat-card"><div class="num">5</div><div class="label">Mood Clusters</div></div>
+      <div class="stat-card"><div class="num">K-Means</div><div class="label">ML Algorithm</div></div>
+    </div>
+  </header>
+
+  <section class="search-section container" id="search">
+    <div class="search-card">
+      <h2>🔍 Search Music</h2>
+      <p class="subtitle">Find songs from the dataset or classify any track with AI</p>
+
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="dataset">📂 Dataset Search</button>
+        <button class="mode-tab" data-mode="ai">🤖 AI Classify</button>
+        <button class="mode-tab" data-mode="spotify">🎧 Spotify Online</button>
+      </div>
+
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="Search song or artist..."
+            autocomplete="off"
+          />
+        </div>
+        <input
+          type="text"
+          id="artistInput"
+          class="search-input hidden"
+          placeholder="Artist name (optional)"
+          style="flex:0.6; min-width:160px; padding-left:16px;"
+        />
+        <button class="search-btn" id="searchBtn">Search</button>
+      </div>
+
+      <div class="mood-filters" id="moodFilters">
+        <button class="mood-chip active" data-mood="">All Moods</button>
+        <button class="mood-chip" data-mood="Relax">😌 Relax</button>
+        <button class="mood-chip" data-mood="Party">🎉 Party</button>
+        <button class="mood-chip" data-mood="Romantic">💕 Romantic</button>
+        <button class="mood-chip" data-mood="Happy">😊 Happy</button>
+        <button class="mood-chip" data-mood="Rap">🎤 Rap</button>
+      </div>
+
+      <p class="mode-hint" id="modeHint">
+        Search by song name or artist in the local Spotify dataset (170K+ tracks).
+      </p>
+    </div>
+  </section>
+
+  <section class="results-section container" id="results">
+    <div class="results-header">
+      <h3>Results</h3>
+      <span class="results-count" id="resultsCount"></span>
+    </div>
+    <div id="resultsArea">
+      <div class="empty-state">
+        <p>👆 Search for a song to see mood classification results</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-section container" id="how">
+    <h2>How It Works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Search or Enter a Song</h4>
+        <p>Query our 170K song dataset, search Spotify online, or type any song name for AI analysis.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Extract 10 Audio Features</h4>
+        <p>Acousticness, danceability, energy, tempo, valence, and 5 more Spotify-style parameters.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>K-Means Mood Classification</h4>
+        <p>Our trained ML model assigns each song to one of 5 mood clusters instantly.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p><strong>AI Music Recommendation System</strong> — Built by Jayant Sharma</p>
+      <p style="margin-top:6px;">Python · Scikit-learn · K-Means · Spotify Dataset · OpenAI</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

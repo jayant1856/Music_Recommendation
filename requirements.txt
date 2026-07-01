@@ -3,3 +3,8 @@ pandas
 numpy
 scikit-learn
 plotly
+python-dotenv
+requests
+joblib
+flask
+flask-cors
