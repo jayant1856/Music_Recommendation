@@ -85,29 +85,3 @@ class SpotifyClient:
                 )
             )
         return tracks
-
-    def get_audio_features(self, track_id: str) -> dict:
-        response = requests.get(
-            f"{self.API_BASE}/audio-features/{track_id}",
-            headers=self._headers(),
-            timeout=15,
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        return {
-            "acousticness": data["acousticness"],
-            "danceability": data["danceability"],
-            "energy": data["energy"],
-            "instrumentalness": data["instrumentalness"],
-            "liveness": data["liveness"],
-            "loudness": data["loudness"],
-            "speechiness": data["speechiness"],
-            "tempo": data["tempo"],
-            "valence": data["valence"],
-        }
-
-    def get_track_features(self, track_id: str, popularity: int) -> dict:
-        features = self.get_audio_features(track_id)
-        features["popularity"] = popularity
-        return features

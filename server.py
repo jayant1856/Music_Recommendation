@@ -338,5 +338,6 @@ def search_spotify():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
     print(f"Starting website at http://localhost:{port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=debug, use_reloader=False)

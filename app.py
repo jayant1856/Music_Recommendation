@@ -1,10 +1,16 @@
 import os
-from pathlib import Path
+from datetime import datetime
+from difflib import get_close_matches
+import tempfile
 
+from utils.audio_features import extract_audio_features
 import pandas as pd
 import streamlit as st
-from datetime import datetime
 from dotenv import load_dotenv
+from services.history import (
+    save_history,
+    favorite_cluster
+)
 
 from ml.constants import CLUSTER_MOODS, FEATURES, MOOD_DESCRIPTIONS
 from ml.classifier import SongClassifier, find_csv_path
@@ -12,6 +18,10 @@ from services.ai_features import AIFeatureError, estimate_features_with_ai
 from services.spotify_client import SpotifyClient, SpotifyConfigError
 
 load_dotenv()
+
+spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
+spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 # -------------------------
 # PAGE CONFIG
@@ -72,11 +82,78 @@ st.markdown(
 # -------------------------
 
 keyword_map = {
-    "Relax": 0,
-    "Party": 1,
-    "Romantic": 2,
-    "Happy": 3,
-    "Rap": 4,
+
+    # Cluster 0 : Classical / Relaxing
+    "relax": 0,
+    "relaxing": 0,
+    "calm": 0,
+    "peaceful": 0,
+    "sleep": 0,
+    "study": 0,
+    "focus": 0,
+    "meditation": 0,
+    "classical": 0,
+    "instrumental": 0,
+    "soft": 0,
+
+    # Cluster 1 : Party / Energetic
+    "party": 1,
+    "dance": 1,
+    "energetic": 1,
+    "energy": 1,
+    "workout": 1,
+    "gym": 1,
+    "running": 1,
+    "exercise": 1,
+    "celebration": 1,
+    "fun": 1,
+    "festival": 1,
+
+    # Cluster 2 : Romantic
+    "romantic": 2,
+    "romance": 2,
+    "love": 2,
+    "couple": 2,
+    "date": 2,
+    "relationship": 2,
+    "heart": 2,
+    "valentine": 2,
+    "crush": 2,
+    "emotion": 2,
+    "affection": 2,
+
+    # Cluster 3 : Happy / Feel-Good
+    "happy": 3,
+    "feelgood": 3,
+    "feel-good": 3,
+    "positive": 3,
+    "cheerful": 3,
+    "joy": 3,
+    "smile": 3,
+    "uplifting": 3,
+    "good mood": 3,
+    "motivational": 3,
+    "fresh": 3,
+
+    # Cluster 4 : Rap
+    "rap": 4,
+    "hiphop": 4,
+    "hip-hop": 4,
+    "trap": 4,
+    "freestyle": 4,
+    "bars": 4,
+    "rapping": 4,
+    "drill": 4,
+    "beat": 4,
+    "street": 4
+}
+
+cluster_time_map = {
+    0: "Morning",       # Relax
+    1: "Evening",       # Party
+    2: "Night",         # Romantic
+    3: "Afternoon",     # Happy
+    4: "Late Evening"   # Rap
 }
 
 
@@ -103,13 +180,21 @@ classifier = get_classifier()
 
 def get_time_of_day():
     hour = datetime.now().hour
+
     if 5 <= hour < 12:
         return "Morning"
+
     elif 12 <= hour < 17:
         return "Afternoon"
+
     elif 17 <= hour < 21:
         return "Evening"
-    return "Night"
+
+    elif 21 <= hour < 23:
+        return "Late Evening"
+
+    else:
+        return "Night"
 
 
 def recommend_songs(mood, dataset):
@@ -118,6 +203,31 @@ def recommend_songs(mood, dataset):
     dataset["cluster"] = dataset["cluster"].astype(int)
     return (
         dataset[dataset["cluster"] == cluster]
+        .sort_values(by="popularity", ascending=False)
+        .head(10)
+    )
+    
+def recommend_by_time(dataset):
+
+    current_time = get_time_of_day()
+
+    # Find which cluster belongs to this time
+    selected_cluster = None
+
+    for cluster, time in cluster_time_map.items():
+        if time == current_time:
+            selected_cluster = cluster
+            break
+
+    dataset = dataset.copy()
+    dataset["cluster"] = dataset["cluster"].astype(int)
+
+    recommendations = dataset[
+        dataset["cluster"] == selected_cluster
+    ]
+
+    return (
+        recommendations
         .sort_values(by="popularity", ascending=False)
         .head(10)
     )
@@ -142,6 +252,48 @@ def render_classification_result(result: dict, source: str):
     )
     with st.expander("View extracted parameters"):
         render_feature_table(result["features"])
+
+
+def classify_and_store(
+    song_name: str,
+    artist_name: str,
+    source_label: str,
+    audio_features: dict | None = None,
+):
+    """Runs the AI feature estimator and stores the result."""
+
+    with st.spinner("AI is estimating song parameters..."):
+
+        try:
+
+            features = estimate_features_with_ai(
+                song_name,
+                artist_name,
+                audio_features=audio_features,
+            )
+
+            result = classifier.classify_song(features)
+
+            save_history(
+                user="Guest",
+                song=song_name,
+                artist=artist_name,
+                cluster=result["cluster"],
+                mood=result["mood"],
+            )
+
+            st.session_state["last_result"] = {
+                **result,
+                "song": song_name,
+                "artist": artist_name,
+                "source": source_label,
+            }
+
+        except AIFeatureError as exc:
+            st.error(str(exc))
+
+        except Exception as exc:
+            st.error(f"Classification failed: {exc}")
 
 # -------------------------
 # SIDEBAR
@@ -202,29 +354,90 @@ if page == "🏠 Home":
 # =====================================================
 
 elif page == "🎵 Recommend":
+
     st.title("🎵 Music Recommendations")
 
     if df is None:
-        st.error("Cannot recommend without `spotify_prepared.csv` in the project folder.")
+        st.error("Cannot recommend without spotify_prepared.csv.")
         st.stop()
 
-    mood = st.selectbox(
-        "Select Your Mood",
-        ["Relax", "Party", "Romantic", "Happy", "Rap"],
+    # ===========================================
+    # Mood Based Recommendation
+    # ===========================================
+
+    st.subheader("😊 Recommend by Mood")
+
+    user_input = st.text_input(
+        "Enter your mood or activity",
+        placeholder="e.g. study, gym, love, party, sleep..."
     )
 
     if st.button("Find Songs", type="primary"):
-        with st.spinner("Finding perfect songs..."):
-            recommendations = recommend_songs(mood, df)
 
-        st.write("Mood:", mood)
-        st.write("Songs Found:", len(recommendations))
+        mood = user_input.strip().lower()
+
+        if mood not in keyword_map:
+
+            matches = get_close_matches(mood, keyword_map.keys(), n=5)
+
+            if matches:
+                st.warning(f"Did you mean: {', '.join(matches)}?")
+            else:
+                st.error("Mood not recognized.")
+
+        else:
+
+            cluster = keyword_map[mood]
+
+            recommendations = (
+                df[df["cluster"] == cluster]
+                .sort_values(by="popularity", ascending=False)
+                .head(10)
+            )
+
+            if recommendations.empty:
+                st.warning("No songs found.")
+
+            else:
+
+                st.success(f"{len(recommendations)} songs found!")
+
+                for _, row in recommendations.iterrows():
+
+                    st.markdown(
+                        f"""
+                        <div class='song-card'>
+                            <h3>🎵 {row['name']}</h3>
+                            <p>🎤 {row['artists']}</p>
+                            <p>⭐ Popularity: {row['popularity']}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+    # ===========================================
+    # Recommend by Time
+    # ===========================================
+
+    st.divider()
+
+    st.subheader("🕒 Recommend According to Current Time")
+
+    st.info(f"Current Time: {get_time_of_day()}")
+
+    if st.button("Recommend by Time"):
+
+        recommendations = recommend_by_time(df)
 
         if recommendations.empty:
-            st.error("No songs found for this mood.")
+            st.warning("No songs found.")
+
         else:
+
             st.success(f"{len(recommendations)} songs found!")
+
             for _, row in recommendations.iterrows():
+
                 st.markdown(
                     f"""
                     <div class='song-card'>
@@ -236,6 +449,64 @@ elif page == "🎵 Recommend":
                     unsafe_allow_html=True,
                 )
 
+    # ===========================================
+    # Personalized Recommendation
+    # ===========================================
+
+    st.divider()
+
+    st.subheader("⭐ Personalized Recommendation")
+
+    if st.button("Recommend From My History"):
+
+        fav = favorite_cluster()
+
+        if fav is None:
+            st.warning("No listening history found. Classify a few songs first.")
+
+        else:
+
+            history = pd.read_csv("data/user_history.csv")
+
+            personalized = df.copy()
+            personalized["cluster"] = personalized["cluster"].astype(int)
+
+            personalized = personalized[
+                personalized["cluster"] == fav
+            ]
+
+            # Remove songs already listened to
+            played = history["song"]
+
+            personalized = personalized[
+                ~personalized["name"].isin(played)
+            ]
+
+            # Sort by popularity
+            personalized = personalized.sort_values(
+                by="popularity",
+                ascending=False
+            )
+
+            if personalized.empty:
+                st.warning("No new songs available.")
+
+            else:
+
+                st.success("Recommended just for you ❤️")
+
+                for _, row in personalized.head(10).iterrows():
+
+                    st.markdown(
+                        f"""
+                        <div class='song-card'>
+                            <h3>🎵 {row['name']}</h3>
+                            <p>🎤 {row['artists']}</p>
+                            <p>⭐ Popularity: {row['popularity']}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 # =====================================================
 # CLASSIFY ONLINE
 # =====================================================
@@ -255,7 +526,13 @@ elif page == "🔍 Classify Online":
         st.stop()
 
     spotify = SpotifyClient()
-    tab_spotify, tab_ai = st.tabs(["Spotify Search", "AI Estimate (by name)"])
+    tab_spotify, tab_ai, tab_mp3 = st.tabs(
+    [
+        "Spotify Search",
+        "AI Estimate (by name)",
+        "Upload MP3"
+    ]
+)
 
     with tab_spotify:
         if not spotify.is_configured:
@@ -284,20 +561,14 @@ elif page == "🔍 Classify Online":
                         st.caption(f"{track.album} · Popularity {track.popularity}")
                     with cols[1]:
                         if st.button("Classify", key=f"classify_{track.track_id}"):
-                            with st.spinner("Extracting features & classifying..."):
-                                try:
-                                    features = spotify.get_track_features(
-                                        track.track_id, track.popularity
-                                    )
-                                    result = classifier.classify_song(features)
-                                    st.session_state["last_result"] = {
-                                        **result,
-                                        "song": track.name,
-                                        "artist": track.artists,
-                                        "source": "Spotify API",
-                                    }
-                                except Exception as exc:
-                                    st.error(f"Classification failed: {exc}")
+                            if not os.getenv("GEMINI_API_KEY"):
+                                st.error("Set GEMINI_API_KEY in .env")
+                            else:
+                                classify_and_store(
+                                    track.name,
+                                    track.artists,
+                                    "AI + Spotify Search",
+                                )
 
     with tab_ai:
         st.write(
@@ -310,24 +581,70 @@ elif page == "🔍 Classify Online":
         if st.button("Estimate & Classify with AI", type="primary"):
             if not ai_song.strip():
                 st.warning("Enter a song name.")
-            elif not os.getenv("OPENAI_API_KEY"):
-                st.warning("Set `OPENAI_API_KEY` in `.env` to use AI feature estimation.")
+            elif not os.getenv("GEMINI_API_KEY"):
+                st.warning("Set `GEMINI_API_KEY` in `.env` to use AI feature estimation.")
             else:
-                with st.spinner("AI is analyzing the song..."):
-                    try:
-                        features = estimate_features_with_ai(ai_song, ai_artist)
-                        result = classifier.classify_song(features)
-                        st.session_state["last_result"] = {
-                            **result,
-                            "song": ai_song,
-                            "artist": ai_artist or "Unknown",
-                            "source": "AI (OpenAI)",
-                        }
-                    except AIFeatureError as exc:
-                        st.error(str(exc))
-                    except Exception as exc:
-                        st.error(f"AI classification failed: {exc}")
+                classify_and_store(ai_song, ai_artist or "Unknown", "AI (Gemini)")
 
+   
+        # =====================================================
+        # Upload MP3
+        # =====================================================
+    with tab_mp3:
+
+        st.write(
+        "Upload an MP3 file. AI will analyze the audio and classify it "
+        "using your trained K-Means model."
+    )
+
+    uploaded_audio = st.file_uploader(
+        "Choose an MP3 file",
+        type=["mp3"]
+    )
+
+    song_name = st.text_input(
+        "Song Name (optional)",
+        key="upload_song"
+    )
+
+    artist_name = st.text_input(
+        "Artist (optional)",
+        key="upload_artist"
+    )
+
+    if uploaded_audio is not None:
+
+        st.audio(uploaded_audio)
+
+        if st.button("Analyze & Classify MP3"):
+
+            if not os.getenv("GEMINI_API_KEY"):
+                st.error("Set GEMINI_API_KEY in .env")
+
+            else:
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=".mp3"
+                ) as tmp:
+
+                    tmp.write(uploaded_audio.read())
+
+                    audio_path = tmp.name
+
+                with st.spinner("Extracting audio features..."):
+
+                    audio_features = extract_audio_features(audio_path)
+
+                with st.spinner("AI is estimating Spotify parameters..."):
+
+                    classify_and_store(
+                        song_name or uploaded_audio.name,
+                        artist_name or "Unknown",
+                        "MP3 Upload",
+                        audio_features
+                    )
+                    
     last = st.session_state.get("last_result")
     if last:
         st.divider()
