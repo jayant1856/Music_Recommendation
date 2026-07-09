@@ -1,26 +1,44 @@
 import os
+import tempfile
 from datetime import datetime
 from difflib import get_close_matches
-import tempfile
 
-from utils.audio_features import extract_audio_features
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
-from services.history import (
-    save_history,
-    favorite_cluster
-)
 
-from ml.constants import CLUSTER_MOODS, FEATURES, MOOD_DESCRIPTIONS
 from ml.classifier import SongClassifier, find_csv_path
+from ml.constants import CLUSTER_MOODS, FEATURES, MOOD_DESCRIPTIONS
 from services.ai_features import AIFeatureError, estimate_features_with_ai
+from services.history import favorite_cluster, load_history, save_history
 from services.spotify_client import SpotifyClient, SpotifyConfigError
+from utils.audio_features import extract_audio_features
+
+from ui.theme import inject_global_styles, MOOD_ICONS
+from ui.components import (
+    sidebar_brand,
+    section_header,
+    empty_state,
+    hero_section,
+    feature_card_grid,
+    stat_cards,
+    song_card,
+    song_card_row,
+    feature_progress_bars,
+    confidence_from_kmeans,
+    classification_result_card,
+    feature_radar_chart,
+    mood_distribution_chart,
+    cluster_distribution_chart,
+    popularity_histogram,
+    cluster_feature_radar,
+    recent_search_timeline,
+    pipeline_diagram,
+    session_song_list,
+)
 
 load_dotenv()
 
-spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
-spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 # -------------------------
@@ -33,52 +51,25 @@ st.set_page_config(
     layout="wide",
 )
 
-# -------------------------
-# CUSTOM CSS
-# -------------------------
-
-st.markdown(
-    """
-<style>
-.stApp {
-    background-color: #0F172A;
-    color: white;
-}
-.hero {
-    text-align: center;
-    padding: 40px;
-}
-.hero h1 {
-    font-size: 60px;
-    color: white;
-}
-.hero p {
-    font-size: 20px;
-    color: #CBD5E1;
-}
-.song-card {
-    background: #1E293B;
-    padding: 20px;
-    border-radius: 20px;
-    margin-bottom: 15px;
-    border-left: 5px solid #1DB954;
-}
-.mood-badge {
-    display: inline-block;
-    background: #1DB954;
-    color: white;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-weight: bold;
-    margin-top: 8px;
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
+inject_global_styles()
 
 # -------------------------
-# LOAD DATA
+# DEVELOPER INFO
+# (fill in your own links here — empty values are simply hidden)
+# -------------------------
+
+DEVELOPER = {
+    "name": "Jayant Sharma",
+    "role": "AI & Machine Learning Enthusiast",
+    "skills": ["Python", "Machine Learning", "Data Science", "Streamlit"],
+    "github": "https://github.com/jayant1856",
+    "linkedin": "",
+    "email": "",
+    "resume_url": "",
+}
+
+# -------------------------
+# DATA / MODEL (unchanged backend logic)
 # -------------------------
 
 keyword_map = {
@@ -145,7 +136,7 @@ keyword_map = {
     "rapping": 4,
     "drill": 4,
     "beat": 4,
-    "street": 4
+    "street": 4,
 }
 
 cluster_time_map = {
@@ -153,7 +144,7 @@ cluster_time_map = {
     1: "Evening",       # Party
     2: "Night",         # Romantic
     3: "Afternoon",     # Happy
-    4: "Late Evening"   # Rap
+    4: "Late Evening",  # Rap
 }
 
 
@@ -174,7 +165,7 @@ df = load_data()
 classifier = get_classifier()
 
 # -------------------------
-# HELPERS
+# HELPERS (unchanged backend logic)
 # -------------------------
 
 
@@ -183,16 +174,12 @@ def get_time_of_day():
 
     if 5 <= hour < 12:
         return "Morning"
-
     elif 12 <= hour < 17:
         return "Afternoon"
-
     elif 17 <= hour < 21:
         return "Evening"
-
     elif 21 <= hour < 23:
         return "Late Evening"
-
     else:
         return "Night"
 
@@ -206,14 +193,12 @@ def recommend_songs(mood, dataset):
         .sort_values(by="popularity", ascending=False)
         .head(10)
     )
-    
-def recommend_by_time(dataset):
 
+
+def recommend_by_time(dataset):
     current_time = get_time_of_day()
 
-    # Find which cluster belongs to this time
     selected_cluster = None
-
     for cluster, time in cluster_time_map.items():
         if time == current_time:
             selected_cluster = cluster
@@ -222,36 +207,9 @@ def recommend_by_time(dataset):
     dataset = dataset.copy()
     dataset["cluster"] = dataset["cluster"].astype(int)
 
-    recommendations = dataset[
-        dataset["cluster"] == selected_cluster
-    ]
+    recommendations = dataset[dataset["cluster"] == selected_cluster]
 
-    return (
-        recommendations
-        .sort_values(by="popularity", ascending=False)
-        .head(10)
-    )
-
-
-def render_feature_table(features: dict):
-    rows = [{"Feature": name, "Value": round(float(features[name]), 4)} for name in FEATURES]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-def render_classification_result(result: dict, source: str):
-    mood = result["mood"]
-    st.markdown(
-        f"""
-        <div class='song-card'>
-            <h3>🎭 Predicted Mood: {mood}</h3>
-            <p>Cluster {result['cluster']} — {MOOD_DESCRIPTIONS[mood]}</p>
-            <span class='mood-badge'>Source: {source}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.expander("View extracted parameters"):
-        render_feature_table(result["features"])
+    return recommendations.sort_values(by="popularity", ascending=False).head(10)
 
 
 def classify_and_store(
@@ -263,9 +221,7 @@ def classify_and_store(
     """Runs the AI feature estimator and stores the result."""
 
     with st.spinner("AI is estimating song parameters..."):
-
         try:
-
             features = estimate_features_with_ai(
                 song_name,
                 artist_name,
@@ -288,58 +244,74 @@ def classify_and_store(
                 "artist": artist_name,
                 "source": source_label,
             }
+            st.toast(f"Classified '{song_name}' as {result['mood']}", icon=MOOD_ICONS.get(result["mood"], "🎵"))
 
         except AIFeatureError as exc:
             st.error(str(exc))
-
         except Exception as exc:
             st.error(f"Classification failed: {exc}")
 
+
 # -------------------------
-# SIDEBAR
+# NAVIGATION
 # -------------------------
 
+NAV_ITEMS = [
+    "🏠 Home",
+    "🎵 Recommend",
+    "🔍 Classify Online",
+    "❤️ Personalized",
+    "📊 Analytics",
+    "📁 Project",
+    "👨‍💻 Developer",
+]
+
+if "page" not in st.session_state:
+    st.session_state["page"] = NAV_ITEMS[0]
+
+sidebar_brand()
 page = st.sidebar.radio(
     "Navigation",
-    [
-        "🏠 Home",
-        "🎵 Recommend",
-        "🔍 Classify Online",
-        "📊 Project",
-        "👨‍💻 Developer",
-    ],
+    NAV_ITEMS,
+    index=NAV_ITEMS.index(st.session_state["page"]),
+    key="nav_radio",
+    label_visibility="collapsed",
 )
+st.session_state["page"] = page
+
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+st.sidebar.caption(f"🕒 {get_time_of_day()} · {datetime.now().strftime('%b %d, %Y')}")
+if df is not None:
+    st.sidebar.caption(f"📀 {len(df):,} songs loaded")
 
 # =====================================================
 # HOME
 # =====================================================
 
 if page == "🏠 Home":
-    st.markdown(
-        """
-        <div class='hero'>
-            <h1>🎵 AI Music Recommendation System</h1>
-            <p>
-            Discover songs by mood, or search online and classify new tracks with AI
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    get_started, explore = hero_section()
+    if get_started:
+        st.session_state["page"] = "🎵 Recommend"
+        st.rerun()
+    if explore:
+        st.session_state["page"] = "📁 Project"
+        st.rerun()
+
+    st.write("")
+    history_df = load_history()
+    stat_cards(
+        [
+            ("Songs in Dataset", f"{len(df):,}" if df is not None else "—"),
+            ("Clusters", "5"),
+            ("Features", str(len(FEATURES))),
+            ("History Entries", f"{len(history_df):,}"),
+            ("Time of Day", get_time_of_day()),
+        ]
     )
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Songs", len(df) if df is not None else "—")
-
-    with col2:
-        st.metric("Features", len(FEATURES))
-
-    with col3:
-        st.metric("Clusters", 5)
-
-    with col4:
-        st.metric("Current Time", get_time_of_day())
+    st.write("")
+    section_header("✨", "What you can do here")
+    feature_card_grid()
 
     if df is None:
         st.warning(
@@ -355,168 +327,67 @@ if page == "🏠 Home":
 
 elif page == "🎵 Recommend":
 
-    st.title("🎵 Music Recommendations")
+    section_header("🎵", "Music Recommendations", "Find songs by mood or by the time of day")
 
     if df is None:
         st.error("Cannot recommend without spotify_prepared.csv.")
         st.stop()
 
-    # ===========================================
-    # Mood Based Recommendation
-    # ===========================================
-
     st.subheader("😊 Recommend by Mood")
 
-    user_input = st.text_input(
-        "Enter your mood or activity",
-        placeholder="e.g. study, gym, love, party, sleep..."
-    )
+    search_col, btn_col = st.columns([4, 1])
+    with search_col:
+        user_input = st.text_input(
+            "🔍 Enter your mood or activity",
+            placeholder="e.g. study, gym, love, party, sleep...",
+            label_visibility="visible",
+        )
+    with btn_col:
+        st.write("")
+        st.write("")
+        find_clicked = st.button("Find Songs", type="primary", use_container_width=True)
 
-    if st.button("Find Songs", type="primary"):
-
+    if find_clicked:
         mood = user_input.strip().lower()
 
         if mood not in keyword_map:
-
             matches = get_close_matches(mood, keyword_map.keys(), n=5)
-
             if matches:
                 st.warning(f"Did you mean: {', '.join(matches)}?")
             else:
                 st.error("Mood not recognized.")
-
         else:
-
-            cluster = keyword_map[mood]
-
-            recommendations = (
-                df[df["cluster"] == cluster]
-                .sort_values(by="popularity", ascending=False)
-                .head(10)
-            )
+            with st.spinner("Finding songs that match your mood..."):
+                recommendations = recommend_songs(mood, df)
 
             if recommendations.empty:
                 st.warning("No songs found.")
-
             else:
-
                 st.success(f"{len(recommendations)} songs found!")
-
-                for _, row in recommendations.iterrows():
-
-                    st.markdown(
-                        f"""
-                        <div class='song-card'>
-                            <h3>🎵 {row['name']}</h3>
-                            <p>🎤 {row['artists']}</p>
-                            <p>⭐ Popularity: {row['popularity']}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-    # ===========================================
-    # Recommend by Time
-    # ===========================================
+                for i, (_, row) in enumerate(recommendations.iterrows()):
+                    song_card_row(row, i, prefix="mood")
 
     st.divider()
-
     st.subheader("🕒 Recommend According to Current Time")
-
     st.info(f"Current Time: {get_time_of_day()}")
 
     if st.button("Recommend by Time"):
-
-        recommendations = recommend_by_time(df)
+        with st.spinner("Curating songs for right now..."):
+            recommendations = recommend_by_time(df)
 
         if recommendations.empty:
             st.warning("No songs found.")
-
         else:
-
             st.success(f"{len(recommendations)} songs found!")
+            for i, (_, row) in enumerate(recommendations.iterrows()):
+                song_card_row(row, i, prefix="time")
 
-            for _, row in recommendations.iterrows():
-
-                st.markdown(
-                    f"""
-                    <div class='song-card'>
-                        <h3>🎵 {row['name']}</h3>
-                        <p>🎤 {row['artists']}</p>
-                        <p>⭐ Popularity: {row['popularity']}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-    # ===========================================
-    # Personalized Recommendation
-    # ===========================================
-
-    st.divider()
-
-    st.subheader("⭐ Personalized Recommendation")
-
-    if st.button("Recommend From My History"):
-
-        fav = favorite_cluster()
-
-        if fav is None:
-            st.warning("No listening history found. Classify a few songs first.")
-
-        else:
-
-            history = pd.read_csv("data/user_history.csv")
-
-            personalized = df.copy()
-            personalized["cluster"] = personalized["cluster"].astype(int)
-
-            personalized = personalized[
-                personalized["cluster"] == fav
-            ]
-
-            # Remove songs already listened to
-            played = history["song"]
-
-            personalized = personalized[
-                ~personalized["name"].isin(played)
-            ]
-
-            # Sort by popularity
-            personalized = personalized.sort_values(
-                by="popularity",
-                ascending=False
-            )
-
-            if personalized.empty:
-                st.warning("No new songs available.")
-
-            else:
-
-                st.success("Recommended just for you ❤️")
-
-                for _, row in personalized.head(10).iterrows():
-
-                    st.markdown(
-                        f"""
-                        <div class='song-card'>
-                            <h3>🎵 {row['name']}</h3>
-                            <p>🎤 {row['artists']}</p>
-                            <p>⭐ Popularity: {row['popularity']}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
 # =====================================================
 # CLASSIFY ONLINE
 # =====================================================
 
 elif page == "🔍 Classify Online":
-    st.title("🔍 Classify Songs Online")
-    st.write(
-        "Search for songs on Spotify, extract audio parameters, and classify them "
-        "into mood clusters using your K-Means model."
-    )
+    section_header("🔍", "Classify Songs Online", "Search Spotify, or let AI estimate audio features")
 
     if not classifier.is_ready:
         st.error(
@@ -526,13 +397,7 @@ elif page == "🔍 Classify Online":
         st.stop()
 
     spotify = SpotifyClient()
-    tab_spotify, tab_ai, tab_mp3 = st.tabs(
-    [
-        "Spotify Search",
-        "AI Estimate (by name)",
-        "Upload MP3"
-    ]
-)
+    tab_spotify, tab_ai, tab_mp3 = st.tabs(["Spotify Search", "AI Estimate (by name)", "Upload MP3"])
 
     with tab_spotify:
         if not spotify.is_configured:
@@ -541,11 +406,11 @@ elif page == "🔍 Classify Online":
                 "Create a free app at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)."
             )
         else:
-            query = st.text_input("Search song or artist", placeholder="e.g. Blinding Lights The Weeknd")
+            query = st.text_input("🔍 Search song or artist", placeholder="e.g. Blinding Lights The Weeknd")
             limit = st.slider("Max results", 5, 20, 10)
 
             if st.button("Search Spotify", type="primary", key="search_spotify"):
-                with st.spinner("Searching..."):
+                with st.spinner("Searching Spotify..."):
                     try:
                         st.session_state["spotify_results"] = spotify.search_tracks(query, limit=limit)
                     except Exception as exc:
@@ -555,20 +420,20 @@ elif page == "🔍 Classify Online":
             if results:
                 st.subheader("Results")
                 for track in results:
-                    cols = st.columns([4, 1])
-                    with cols[0]:
-                        st.markdown(f"**{track.name}** — {track.artists}")
-                        st.caption(f"{track.album} · Popularity {track.popularity}")
-                    with cols[1]:
-                        if st.button("Classify", key=f"classify_{track.track_id}"):
-                            if not os.getenv("GEMINI_API_KEY"):
-                                st.error("Set GEMINI_API_KEY in .env")
-                            else:
-                                classify_and_store(
-                                    track.name,
-                                    track.artists,
-                                    "AI + Spotify Search",
-                                )
+                    song_card(
+                        track.name,
+                        track.artists,
+                        track.popularity,
+                        key=f"spot_{track.track_id}",
+                        spotify_url=track.external_url,
+                        preview_url=track.preview_url,
+                    )
+                    if st.button("🎧 Classify This Track", key=f"classify_{track.track_id}", use_container_width=True):
+                        if not os.getenv("GEMINI_API_KEY"):
+                            st.error("Set GEMINI_API_KEY in .env")
+                        else:
+                            classify_and_store(track.name, track.artists, "AI + Spotify Search")
+                    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
     with tab_ai:
         st.write(
@@ -586,122 +451,279 @@ elif page == "🔍 Classify Online":
             else:
                 classify_and_store(ai_song, ai_artist or "Unknown", "AI (Gemini)")
 
-   
-        # =====================================================
-        # Upload MP3
-        # =====================================================
     with tab_mp3:
-
         st.write(
-        "Upload an MP3 file. AI will analyze the audio and classify it "
-        "using your trained K-Means model."
-    )
+            "Upload an MP3 file. AI will analyze the audio and classify it "
+            "using your trained K-Means model."
+        )
 
-    uploaded_audio = st.file_uploader(
-        "Choose an MP3 file",
-        type=["mp3"]
-    )
+        uploaded_audio = st.file_uploader("Choose an MP3 file", type=["mp3"])
+        song_name = st.text_input("Song Name (optional)", key="upload_song")
+        artist_name = st.text_input("Artist (optional)", key="upload_artist")
 
-    song_name = st.text_input(
-        "Song Name (optional)",
-        key="upload_song"
-    )
+        if uploaded_audio is not None:
+            st.audio(uploaded_audio)
 
-    artist_name = st.text_input(
-        "Artist (optional)",
-        key="upload_artist"
-    )
+            if st.button("Analyze & Classify MP3"):
+                if not os.getenv("GEMINI_API_KEY"):
+                    st.error("Set GEMINI_API_KEY in .env")
+                else:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+                        tmp.write(uploaded_audio.read())
+                        audio_path = tmp.name
 
-    if uploaded_audio is not None:
+                    with st.spinner("Extracting audio features..."):
+                        audio_features = extract_audio_features(audio_path)
 
-        st.audio(uploaded_audio)
+                    with st.spinner("AI is estimating Spotify parameters..."):
+                        classify_and_store(
+                            song_name or uploaded_audio.name,
+                            artist_name or "Unknown",
+                            "MP3 Upload",
+                            audio_features,
+                        )
 
-        if st.button("Analyze & Classify MP3"):
-
-            if not os.getenv("GEMINI_API_KEY"):
-                st.error("Set GEMINI_API_KEY in .env")
-
-            else:
-
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix=".mp3"
-                ) as tmp:
-
-                    tmp.write(uploaded_audio.read())
-
-                    audio_path = tmp.name
-
-                with st.spinner("Extracting audio features..."):
-
-                    audio_features = extract_audio_features(audio_path)
-
-                with st.spinner("AI is estimating Spotify parameters..."):
-
-                    classify_and_store(
-                        song_name or uploaded_audio.name,
-                        artist_name or "Unknown",
-                        "MP3 Upload",
-                        audio_features
-                    )
-                    
     last = st.session_state.get("last_result")
     if last:
         st.divider()
-        st.subheader(f"🎵 {last['song']} — {last['artist']}")
-        render_classification_result(last, last["source"])
+        section_header(MOOD_ICONS.get(last["mood"], "🎵"), f"{last['song']} — {last['artist']}")
+
+        confidence = confidence_from_kmeans(last["features"], classifier, FEATURES)
+
+        result_col, chart_col = st.columns([1, 1.1])
+        with result_col:
+            classification_result_card(last, last["source"], confidence)
+            with st.expander("View extracted parameters", expanded=True):
+                feature_progress_bars(last["features"])
+        with chart_col:
+            st.plotly_chart(feature_radar_chart(last["features"], last["mood"]), use_container_width=True)
+
+# =====================================================
+# PERSONALIZED
+# =====================================================
+
+elif page == "❤️ Personalized":
+    section_header("❤️", "Personalized For You", "Built from your classification history")
+
+    if df is None:
+        st.error("Cannot personalize without spotify_prepared.csv.")
+        st.stop()
+
+    history_df = load_history()
+    fav = favorite_cluster()
+
+    if fav is None or history_df.empty:
+        empty_state("🎧", "No listening history yet. Classify a few songs in <b>Classify Online</b> to unlock personalized recommendations.")
+    else:
+        fav_mood = CLUSTER_MOODS.get(int(fav), "Unknown")
+        fav_artist = (
+            history_df["artist"].mode()[0]
+            if "artist" in history_df.columns and not history_df["artist"].empty
+            else "—"
+        )
+
+        stat_cards(
+            [
+                ("Favorite Mood", f"{MOOD_ICONS.get(fav_mood, '🎵')} {fav_mood}"),
+                ("Classifications", f"{len(history_df):,}"),
+                ("Top Artist", fav_artist),
+            ]
+        )
+
+        st.write("")
+        col_hist, col_artists = st.columns(2)
+
+        with col_hist:
+            section_header("🕘", "Recently Classified")
+            recent = history_df.sort_values("timestamp", ascending=False).head(5) if "timestamp" in history_df.columns else history_df.tail(5)
+            for _, row in recent.iterrows():
+                mood = row.get("mood")
+                st.markdown(
+                    f"""
+                    <div class="glass-card" style="padding:12px 18px;margin-bottom:8px;">
+                        <b>{row.get('song', '—')}</b> — {row.get('artist', '—')}
+                        <div class="badge-row">{f"<span class='badge' style='background:rgba(29,185,84,0.15);color:#1DB954;'>{MOOD_ICONS.get(mood, '🎵')} {mood}</span>" if mood else ''}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        with col_artists:
+            section_header("🎤", "Favorite Artists")
+            if "artist" in history_df.columns:
+                top_artists = history_df["artist"].value_counts().head(5)
+                for artist, count in top_artists.items():
+                    st.markdown(
+                        f"""
+                        <div class="glass-card" style="padding:12px 18px;margin-bottom:8px;display:flex;justify-content:space-between;">
+                            <span><b>{artist}</b></span><span style="color:var(--text-muted);">{count} plays</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+        st.divider()
+        section_header("🎁", "Recommended Just For You")
+
+        history = load_history()
+        personalized = df.copy()
+        personalized["cluster"] = personalized["cluster"].astype(int)
+        personalized = personalized[personalized["cluster"] == fav]
+
+        played = history["song"] if "song" in history.columns else pd.Series(dtype=str)
+        personalized = personalized[~personalized["name"].isin(played)]
+        personalized = personalized.sort_values(by="popularity", ascending=False)
+
+        if personalized.empty:
+            empty_state("🎵", "No new songs available in your favorite mood right now.")
+        else:
+            for i, (_, row) in enumerate(personalized.head(10).iterrows()):
+                song_card_row(row, i, prefix="personal")
+
+    st.divider()
+    like_col, save_col = st.columns(2)
+    with like_col:
+        session_song_list("Liked Songs", "❤️", st.session_state.get("liked_songs", {}))
+    with save_col:
+        session_song_list("Saved Songs", "⭐", st.session_state.get("saved_songs", {}))
+
+# =====================================================
+# ANALYTICS
+# =====================================================
+
+elif page == "📊 Analytics":
+    section_header("📊", "Analytics", "How the dataset and your activity break down")
+
+    if df is None:
+        st.error("Cannot show analytics without spotify_prepared.csv.")
+        st.stop()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.plotly_chart(mood_distribution_chart(df), use_container_width=True)
+    with c2:
+        st.plotly_chart(cluster_distribution_chart(df), use_container_width=True)
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.plotly_chart(popularity_histogram(df), use_container_width=True)
+    with c4:
+        history_df = load_history()
+        timeline = recent_search_timeline(history_df)
+        if timeline is not None:
+            st.plotly_chart(timeline, use_container_width=True)
+        else:
+            empty_state("📈", "Classify songs over time to see your activity timeline here.")
+
+    st.plotly_chart(cluster_feature_radar(df, FEATURES), use_container_width=True)
 
 # =====================================================
 # PROJECT
 # =====================================================
 
-elif page == "📊 Project":
-    st.title("📊 About Project")
+elif page == "📁 Project":
+    section_header("📁", "About This Project")
 
-    st.subheader("Problem Statement")
-    st.write(
-        "Users often struggle to find songs matching their mood. "
-        "This project uses K-Means clustering on Spotify audio features "
-        "to group and recommend music."
+    st.markdown(
+        """
+        <div class="glass-card" style="margin-bottom:20px;">
+            <h4>🧩 Overview</h4>
+            <p style="color:var(--text-muted);">
+                Users often struggle to find songs matching their mood. This project uses
+                K-Means clustering on Spotify audio features to group and recommend music,
+                with an AI fallback (Gemini) for songs that aren't in the dataset.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.subheader("Machine Learning")
-    st.write(
-        """
-        - **K-Means Clustering** (5 mood clusters)
-        - **10 features**: acousticness, danceability, energy, instrumentalness,
-          liveness, loudness, speechiness, tempo, valence, popularity
-        - **Online pipeline**: Spotify search → audio features → classify
-        - **AI fallback**: LLM estimates parameters from song name/artist
-        """
+    section_header("🔬", "Machine Learning Pipeline")
+    pipeline_diagram(
+        [
+            ("🔍", "Spotify Search", "Look up any track"),
+            ("🎚️", "Feature Extraction", "Audio / AI estimation"),
+            ("🤖", "K-Means Model", "Predict cluster"),
+            ("🎭", "Mood Mapping", "Cluster → mood label"),
+            ("🎵", "Recommendation", "Ranked by popularity"),
+        ]
     )
 
-    st.subheader("Mood Clusters")
-    for cluster_id, mood in CLUSTER_MOODS.items():
-        st.write(f"- **{mood}** (cluster {cluster_id}): {MOOD_DESCRIPTIONS[mood]}")
+    st.write("")
+    col_tech, col_data = st.columns(2)
+    with col_tech:
+        section_header("🛠️", "Technologies Used")
+        techs = ["Streamlit", "Python", "scikit-learn", "Pandas", "NumPy", "Plotly", "Gemini AI", "Spotify API", "Librosa"]
+        st.markdown("".join(f"<span class='skill-chip'>{t}</span>" for t in techs), unsafe_allow_html=True)
+
+    with col_data:
+        section_header("🗂️", "Dataset & Features")
+        if df is not None:
+            st.markdown(f"<p style='color:var(--text-muted);'>{len(df):,} songs · {len(FEATURES)} features</p>", unsafe_allow_html=True)
+        st.markdown("".join(f"<span class='skill-chip'>{f}</span>" for f in FEATURES), unsafe_allow_html=True)
+
+    st.write("")
+    section_header("🎭", "Mood Clusters")
+    cols = st.columns(len(CLUSTER_MOODS))
+    for col, (cluster_id, mood) in zip(cols, CLUSTER_MOODS.items()):
+        with col:
+            st.markdown(
+                f"""
+                <div class="glass-card" style="text-align:center;">
+                    <div style="font-size:26px;">{MOOD_ICONS.get(mood, '🎵')}</div>
+                    <h4 style="margin:8px 0 4px 0;">{mood}</h4>
+                    <p style="color:var(--text-muted);font-size:12.5px;">Cluster {cluster_id}</p>
+                    <p style="color:var(--text-muted);font-size:12.5px;">{MOOD_DESCRIPTIONS[mood]}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 # =====================================================
 # DEVELOPER
 # =====================================================
 
 elif page == "👨‍💻 Developer":
-    st.title("👨‍💻 Developer")
+    section_header("👨‍💻", "Developer")
 
-    st.markdown(
-        """
-        ### Jayant Sharma
+    left, right = st.columns([1, 2])
+    with left:
+        initials = "".join(w[0] for w in DEVELOPER["name"].split()[:2]).upper()
+        st.markdown(
+            f"""
+            <div class="glass-card" style="text-align:center;">
+                <div class="dev-avatar">{initials}</div>
+                <h3 style="margin:0;">{DEVELOPER['name']}</h3>
+                <p style="color:var(--text-muted);margin-top:2px;">{DEVELOPER['role']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        AI & Machine Learning Enthusiast
+    with right:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <h4>Skills</h4>
+                <div>{''.join(f"<span class='skill-chip'>{s}</span>" for s in DEVELOPER['skills'])}</div>
+                <h4 style="margin-top:18px;">Project</h4>
+                <p style="color:var(--text-muted);">AI Music Recommendation System</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        #### Skills
-        - Python
-        - Machine Learning
-        - Data Science
-        - Streamlit
-
-        #### Project
-        AI Music Recommendation System
-        """
-    )
-
-    st.markdown("[GitHub](https://github.com/jayant1856)")
+        st.write("")
+        link_cols = st.columns(4)
+        links = [
+            ("GitHub", DEVELOPER["github"]),
+            ("LinkedIn", DEVELOPER["linkedin"]),
+            ("Email", f"mailto:{DEVELOPER['email']}" if DEVELOPER["email"] else ""),
+            ("Resume", DEVELOPER["resume_url"]),
+        ]
+        for col, (label, url) in zip(link_cols, links):
+            with col:
+                if url:
+                    st.link_button(label, url, use_container_width=True)
+                else:
+                    st.button(label, disabled=True, use_container_width=True, help=f"Add your {label} link in DEVELOPER dict")
