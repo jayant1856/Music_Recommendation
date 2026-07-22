@@ -10,7 +10,15 @@ from dotenv import load_dotenv
 from ml.classifier import SongClassifier, find_csv_path
 from ml.constants import CLUSTER_MOODS, FEATURES, MOOD_DESCRIPTIONS
 from services.ai_features import AIFeatureError, estimate_features_with_ai
-from services.history import favorite_cluster, load_history, save_history
+from services.history import (
+    load_history,
+    save_history,
+    favorite_cluster,
+    favorite_time,
+    favorite_day,
+    get_time_of_day,
+    get_day_of_week,
+)
 from services.spotify_client import SpotifyClient, SpotifyConfigError
 from utils.audio_features import extract_audio_features
 
@@ -236,6 +244,7 @@ def classify_and_store(
                 artist=artist_name,
                 cluster=result["cluster"],
                 mood=result["mood"],
+                
             )
 
             st.session_state["last_result"] = {
@@ -504,6 +513,60 @@ elif page == "🔍 Classify Online":
 
 elif page == "❤️ Personalized":
     section_header("❤️", "Personalized For You", "Built from your classification history")
+    
+    fav_cluster = favorite_cluster()
+    current_time = get_time_of_day()
+    current_day = get_day_of_week()
+    history = load_history()
+
+if history_df.empty:
+    st.warning("No listening history found.")
+    st.stop()
+    
+    recommendations = df.copy()
+    recommendations["score"] = 0
+    recommendations.loc[
+    recommendations["cluster"] == fav_cluster,
+    "score"
+] += 50
+    
+    cluster_time = (
+    history.groupby("cluster")["time_of_day"]
+    .agg(lambda x: x.mode()[0])
+    .to_dict()
+)
+    recommendations["preferred_time"] = recommendations["cluster"].map(cluster_time)
+    recommendations.loc[
+    recommendations["preferred_time"] == current_time,
+    "score"
+] += 30
+    
+    cluster_day = (
+    history.groupby("cluster")["day_of_week"]
+    .agg(lambda x: x.mode()[0])
+    .to_dict()
+)
+    recommendations["preferred_day"] = recommendations["cluster"].map(cluster_day)
+    recommendations.loc[
+    recommendations["preferred_day"] == current_day,
+    "score"
+] += 20
+    
+    played = history["song"]
+
+    recommendations = recommendations[
+    ~recommendations["name"].isin(played)
+]
+    recommendations = recommendations.sort_values(
+    by="score",
+    ascending=False
+)
+    st.dataframe(
+    recommendations[
+        ["name", "artists", "score"]
+    ].head(10)
+)
+ 
 
     if df is None:
         st.error("Cannot personalize without spotify_prepared.csv.")
@@ -561,6 +624,7 @@ elif page == "❤️ Personalized":
                         """,
                         unsafe_allow_html=True,
                     )
+                    
 
         st.divider()
         section_header("🎁", "Recommended Just For You")

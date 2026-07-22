@@ -1,6 +1,10 @@
-timestamp,user,song,artist,cluster,mood
+timestamp,user,song,artist,cluster,mood,time_of_day,day_of_week
 2026-07-09 19:28:26.866137,Guest,Believer,Imagine Dragons,3,Happy
 2026-07-09 20:50:52.863571,Guest,Lover,Taylor Swift,0,Relax
 2026-07-10 03:00:14.713004,Guest,Blinding Lights,The Weeknd,3,Happy
 2026-07-10 03:02:14.057830,Guest,Dancing On My Own,Robyn,3,Happy
 2026-07-10 05:07:17.166161,Guest,SOS (feat. Aloe Blacc),"Avicii, Aloe Blacc",3,Happy
+2026-07-16 20:19:08.714317,Guest,I Love You So,The Walters,3,Happy
+2026-07-16 20:19:41.895275,Guest,falling,harry styles,0,Relax
+2026-07-16 20:29:38.872682,Guest,Mamma Mia,ABBA,3,Happy
+2026-07-16 20:33:53.562647,Guest,Blinding Lights - slowed to perfection,TommyMuzzic,3,Happy
